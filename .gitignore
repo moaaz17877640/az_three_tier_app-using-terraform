@@ -1,0 +1,4 @@
+ifrasture_as_code_implementation/*.tfstate
+ifrasture_as_code_implementation/*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
