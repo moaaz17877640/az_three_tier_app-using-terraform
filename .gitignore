@@ -1,8 +1,0 @@
-ifrasture_as_code_implementation/*.tfstate
-ifrasture_as_code_implementation/*.tfstate.backup
-.terraform/
-.terraform.lock.hcl
-.terraform
-.terraform.tfstate.lock.info
-README_ANSIBLE.md
-README_TF.md
