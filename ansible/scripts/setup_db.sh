@@ -7,7 +7,7 @@ apt install -y mysql-server
 
 # Create database, user and table
 mysql -e "CREATE DATABASE IF NOT EXISTS exampledb;"
-mysql -e "CREATE USER IF NOT EXISTS 'appuser'@'localhost' IDENTIFIED BY 'S3cureP@ssw0rd'; GRANT ALL PRIVILEGES ON exampledb.* TO 'appuser'@'localhost'; FLUSH PRIVILEGES;"
+mysql -e "CREATE USER IF NOT EXISTS 'appuser'@'localhost' IDENTIFIED BY '<your-password>'; GRANT ALL PRIVILEGES ON exampledb.* TO 'appuser'@'localhost'; FLUSH PRIVILEGES;"
 mysql -e "CREATE TABLE IF NOT EXISTS exampledb.transactions (id INT AUTO_INCREMENT PRIMARY KEY, amount DECIMAL(10,2), description TEXT);"
 
 # Write systemd unit with DB env vars
@@ -23,7 +23,7 @@ WorkingDirectory=/home/moazadmin/app-tier
 Environment=DB_HOST=localhost
 Environment=DB_PORT=3306
 Environment=DB_USER=appuser
-Environment=DB_PWD=S3cureP@ssw0rd
+Environment=DB_PWD=<your-password>
 Environment=DB_DATABASE=exampledb
 ExecStart=/usr/bin/node index.js
 Restart=on-failure
