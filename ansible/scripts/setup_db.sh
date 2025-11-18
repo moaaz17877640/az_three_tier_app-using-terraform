@@ -23,7 +23,7 @@ WorkingDirectory=/home/moazadmin/app-tier
 Environment=DB_HOST=localhost
 Environment=DB_PORT=3306
 Environment=DB_USER=appuser
-Environment=DB_PWD=<your-password>
+....your pass env...value 
 Environment=DB_DATABASE=exampledb
 ExecStart=/usr/bin/node index.js
 Restart=on-failure
