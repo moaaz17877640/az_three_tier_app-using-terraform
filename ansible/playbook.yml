@@ -1,0 +1,219 @@
+---
+# Complete Ansible Playbook for Three Tier Application
+# This includes all fixes and configurations for Node.js upgrade, MSSQL conversion, and networking
+
+- name: Deploy and run App (Node.js) on appservers
+  hosts: appservers
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    app_src: "/home/moazadmin/app-tier"
+    node_version: "18.x"
+    ssh_key_path: "/home/moaz/.ssh/id_rsa"  # WSL path
+  tasks:
+    - name: Ensure apt cache is up to date
+      apt:
+        update_cache: yes
+      ignore_errors: true
+
+    - name: Install Node.js prerequisites
+      apt:
+        name: ["curl", "build-essential"]
+        state: present
+
+    - name: Add NodeSource repo for Node.js 18.x
+      shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_version }} | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js 18.x
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Create app directory
+      file:
+        path: "{{ app_src }}"
+        state: directory
+        owner: moazadmin
+        mode: '0755'
+
+    - name: Copy app-tier source to remote (push from control host)
+      copy:
+        src: ../app-tier/
+        dest: "{{ app_src }}/"
+        owner: moazadmin
+        mode: '0755'
+
+    - name: Install npm dependencies
+      npm:
+        path: "{{ app_src }}"
+        production: no
+
+    - name: Create systemd service for app with DB environment variables
+      copy:
+        dest: /etc/systemd/system/ab3-app.service
+        content: |
+          [Unit]
+          Description=AB3 Node App
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=moazadmin
+          WorkingDirectory={{ app_src }}
+          Environment=DB_HOST=threetier-sqlserver-moaz2024.database.windows.net
+          Environment=DB_PORT=1433
+          Environment=DB_USER=4dm1n157r470r@threetier-sqlserver-moaz2024
+          Environment=DB_PWD=4-v3ry-53cr37-p455w0rd
+          Environment=DB_DATABASE=example-db
+          ExecStart=/usr/bin/node index.js
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Add Microsoft APT repository key and lists (Ubuntu)
+      apt_key:
+        url: https://packages.microsoft.com/keys/microsoft.asc
+        state: present
+
+    - name: Add Microsoft APT repo for Ubuntu
+      copy:
+        dest: /etc/apt/sources.list.d/mssql-release.list
+        content: |
+          deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main
+
+    - name: Update apt cache after adding MS repo
+      apt:
+        update_cache: yes
+      ignore_errors: true
+
+    - name: Fix broken packages non-interactively (accept EULA)
+      environment:
+        ACCEPT_EULA: "Y"
+        DEBIAN_FRONTEND: noninteractive
+      shell: apt --fix-broken install -y
+      ignore_errors: true
+
+    - name: Install mssql-tools and dependencies (accept EULA)
+      environment:
+        ACCEPT_EULA: "Y"
+        DEBIAN_FRONTEND: noninteractive
+      apt:
+        name:
+          - msodbcsql18
+          - mssql-tools
+          - unixodbc-dev
+        state: present
+
+    - name: Create transactions table in Azure SQL if missing
+      shell: |
+        /opt/mssql-tools/bin/sqlcmd -S threetier-sqlserver-moaz2024.database.windows.net -U 4dm1n157r470r@threetier-sqlserver-moaz2024 -P '4-v3ry-53cr37-p455w0rd' -d example-db -Q "CREATE TABLE dbo.transactions (id INT IDENTITY(1,1) PRIMARY KEY, amount FLOAT, description NVARCHAR(255));"
+      ignore_errors: true
+
+    - name: Reload systemd and enable/start app
+      systemd:
+        daemon_reload: yes
+        name: ab3-app.service
+        enabled: yes
+        state: restarted
+
+- name: Build and serve Web (React) on webservers
+  hosts: webservers
+  become: true
+  vars:
+    web_src: "/home/moazadmin/web-tier"
+    node_version: "18.x"
+  tasks:
+    - name: Ensure apt cache is up to date
+      apt:
+        update_cache: yes
+      ignore_errors: true
+
+    - name: Install prerequisites
+      apt:
+        name: ["curl", "nginx", "build-essential"]
+        state: present
+
+    - name: Add NodeSource repo for Node.js
+      shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_version }} | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Create web directory
+      file:
+        path: "{{ web_src }}"
+        state: directory
+        owner: moazadmin
+        mode: '0755'
+
+    - name: Copy web-tier source to remote (push from control host)
+      copy:
+        src: ../web-tier/
+        dest: "{{ web_src }}/"
+        owner: moazadmin
+        mode: '0755'
+
+    - name: Install npm dependencies for web
+      npm:
+        path: "{{ web_src }}"
+        production: no
+
+    - name: Build React app
+      command: npm run build
+      args:
+        chdir: "{{ web_src }}"
+
+    - name: Copy build to nginx html directory
+      command: rsync -a --delete {{ web_src }}/build/ /var/www/html/
+
+    - name: Get app server private IP from inventory facts
+      set_fact:
+        app_private_ip: "{{ hostvars[groups['appservers'][0]].ansible_default_ipv4.address }}"
+
+    - name: Configure nginx to serve build and proxy API to app
+      copy:
+        dest: /etc/nginx/sites-available/ab3
+        content: |
+          server {
+            listen 80;
+            server_name _;
+
+            root /var/www/html;
+            index index.html index.htm;
+
+            location /api/ {
+              proxy_pass http://{{ app_private_ip }}:4000/;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection 'upgrade';
+              proxy_set_header Host $host;
+              proxy_cache_bypass $http_upgrade;
+            }
+
+            location / {
+              try_files $uri $uri/ /index.html;
+            }
+          }
+
+    - name: Enable nginx site and restart nginx
+      file:
+        src: /etc/nginx/sites-available/ab3
+        dest: /etc/nginx/sites-enabled/ab3
+        state: link
+
+    - name: Remove default nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart nginx
+      service:
+        name: nginx
+        state: restarted

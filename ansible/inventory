@@ -1,0 +1,9 @@
+## Inventory updated from Terraform outputs
+[appservers]
+4.211.201.137 ansible_user=moazadmin ansible_ssh_private_key_file=/home/moaz/.ssh/id_rsa
+
+[webservers]
+4.211.129.94 ansible_user=moazadmin ansible_ssh_private_key_file=/home/moaz/.ssh/id_rsa
+
+# If you use Windows paths on the Windows control host, escape backslashes or use forward slashes.
+# If your SSH key path differs, update the `ansible_ssh_private_key_file` value above.

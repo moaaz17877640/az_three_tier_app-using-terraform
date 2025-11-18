@@ -1,0 +1,26 @@
+/*
+ Example terraform.tfvars.example for this project.
+ Copy to terraform.tfvars or pass with -var-file when running terraform.
+ Do NOT commit real secrets to source control. Replace placeholders before running.
+*/
+
+subscription_id = "47a89c6f-7293-45dc-af57-c1871d77dc76"
+
+# Optional: tenant/client (prefer to pass via env vars ARM_TENANT_ID, ARM_CLIENT_ID, ARM_CLIENT_SECRET)
+# tenant_id = "REPLACE_WITH_YOUR_TENANT_ID"
+# client_id = "REPLACE_WITH_YOUR_CLIENT_ID"
+# client_secret = "REPLACE_WITH_YOUR_CLIENT_SECRET"
+
+# SSH public key path (optional) - expand ~ on Linux/WSL, use Windows path on PowerShell
+ssh_pub_key_path = "~/.ssh/id_rsa.pub"
+
+# Availability zone lists (defaults are set in variables.tf)
+# zone2 = ["2"]
+# zone3 = ["3"]
+
+# MySQL admin password (sensitive) - replace with a strong password or provide via env TF_VAR_mysql_admin_password
+mysql_admin_password = "REPLACE_WITH_STRONG_MYSQL_ADMIN_PASSWORD"
+
+# Notes:
+# - Do NOT commit real secrets (client_secret, passwords) to source control.
+# - Copy this file to terraform.tfvars or pass it with -var-file when running terraform.

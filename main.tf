@@ -39,10 +39,22 @@ resource "azurerm_network_security_group" "WEB" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "197.63.218.102/32" # YOUR PUBLIC IP
+    source_address_prefix      = "197.63.213.168/32" # YOUR PUBLIC IP
     destination_address_prefix = "*"
     description                = "Allow SSH from my IP only"
   }
+    security_rule {
+      name                       = "AllowHTTPFromAnywhere"
+      priority                   = 110
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "80"
+      source_address_prefix      = "0.0.0.0/0"
+      destination_address_prefix = "*"
+      description                = "Allow HTTP from anywhere"
+    }
 }
 
 resource "azurerm_network_interface" "WEB" {
@@ -123,6 +135,7 @@ resource "azurerm_subnet" "app_SUBnet2" {
   resource_group_name  = azurerm_resource_group.az_main_tier_RG.name
   virtual_network_name = azurerm_virtual_network.az_main_tier_Vnet.name
   address_prefixes     = ["10.0.3.0/24"]
+  service_endpoints    = ["Microsoft.Sql"]
 }
 
 # Network Security Group to control inbound/outbound traffic for NIC/subnet
@@ -138,10 +151,23 @@ resource "azurerm_network_security_group" "app_NSG2" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "197.63.218.102/32" # YOUR PUBLIC IP
+    destination_port_range     = "4000"
+    source_address_prefix      = azurerm_subnet.SUBnet1.address_prefixes[0]
     destination_address_prefix = "*"
-    description                = "Allow SSH from web "
+    description                = "Allow access from web subnet"
+  }
+
+  security_rule {
+    name                       = "AllowSSHFromMyIPToApp"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "197.63.213.168/32" # YOUR PUBLIC IP
+    destination_address_prefix = "*"
+    description                = "Allow SSH from my IP to app server"
   }
 }
 
@@ -247,4 +273,37 @@ resource "azurerm_mssql_database" "az_threetier_db" {
   lifecycle {
     prevent_destroy = true
   }
+}
+resource "azurerm_network_security_group" "db_NSG" {
+  name                = "db-nsg"
+  location            = azurerm_resource_group.az_main_tier_RG.location
+  resource_group_name = azurerm_resource_group.az_main_tier_RG.name
+    security_rule {
+    name                       = "AllowSSHFromwebtier"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3306"
+    source_address_prefix      = "197.63.213.168/32" # YOUR PUBLIC IP
+    destination_address_prefix = "*"
+    description                = "Allow access from web tier"
+  }
+  
+}
+
+# Allow the app subnet to reach the Azure SQL server via a virtual network rule
+resource "azurerm_mssql_virtual_network_rule" "app_to_sql" {
+  name      = "allow-app-subnet"
+  server_id = azurerm_mssql_server.az_threetier_sqlserver.id
+  subnet_id = azurerm_subnet.app_SUBnet2.id
+}
+
+# Add firewall rule to allow app VM public IP
+resource "azurerm_mssql_firewall_rule" "allow_app_vm" {
+  name             = "allow-app-vm"
+  server_id        = azurerm_mssql_server.az_threetier_sqlserver.id
+  start_ip_address = azurerm_public_ip.app_ip.ip_address
+  end_ip_address   = azurerm_public_ip.app_ip.ip_address
 }
