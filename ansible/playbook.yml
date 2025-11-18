@@ -65,7 +65,7 @@
           Environment=DB_HOST=threetier-sqlserver-moaz2024.database.windows.net
           Environment=DB_PORT=1433
           Environment=DB_USER=4dm1n157r470r@threetier-sqlserver-moaz2024
-          Environment=DB_PWD=4-v3ry-53cr37-p455w0rd
+          #Environment=DB_PWD=<add-your-pass-here>
           Environment=DB_DATABASE=example-db
           ExecStart=/usr/bin/node index.js
           Restart=on-failure
